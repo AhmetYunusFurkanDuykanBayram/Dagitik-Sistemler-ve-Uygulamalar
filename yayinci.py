@@ -50,10 +50,11 @@ s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
 ip = s.getsockname()[0]
 
-liste = {str(UUID): [str(UUID), ip, str(port), "A", "araci2"]}
+liste = {str(UUID): [str(UUID), ip, str(port), "Y", "yayinci1"]}
 bloklist = [] 		# 
 publickeylist = []	#[uuid, publickey]
-sublist = []		
+following = []		
+followers = []		
 
 def parser(data):
 	if "\r\n" in data:
@@ -170,7 +171,7 @@ class serverThread(threading.Thread):
 				elif not pub_list_cont:
 					soketeYaz(self.c, "ERKY")
 				else:
-					sublist.append(UUID_C)
+					followers.append(UUID_C)
 					soketeYaz(self.c, "SUBA")
 			elif komut == "UNSB":
 					soketeYaz(self.c, "UNSA")
@@ -195,93 +196,125 @@ class baglantiKurucu(threading.Thread):
 		threading.Thread.__init__(self)
 	
 	def run(self):
-		tmp = input("adres port: ").split(" ")
-		if int(tmp[1]) == 0:
-			return
-		s=socket.socket()
-		s.connect((tmp[0], int(tmp[1])))
-		UUID_S = None
+		while True:
+			print("liste:")
+			for i in liste:
+				print(liste[i])
+			print("takip edilenler:")
+			for i in following:
+				print(i)
+	
+			tmp = input()	#CAST <mesaj> | ...
+			secenek = tmp.split(" ")
+			if secenek[0] == "CAST":
+				for i in followers:
+					s=socket.socket()
+					s.connect((liste[i][1], int(liste[i][2])))
+					soketeYaz(s,"ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4])
+					k, sec = parser(s.recv(buf_size).decode())	#WAIT al
+					k, sec = parser(s.recv(buf_size).decode())
+					if k == "ACCT":
+						print("ACCT aldim")
+						for p in publickeylist:
+							if p[0] == i:
+								print(p[1])
+								print(tmp[5:].encode())
+								x="CAST "+ RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)
+								print(x)
+								soketeYaz(s,x)
+								s.recv(buf_size).decode()	#CSTA
+								break
+					s.close()
+		
+			elif secenek[0] == "con":
+				s=socket.socket()
+				try:
+					s.connect((secenek[1], int(secenek[2])))
+				except:
+					continue
+				UUID_S = None
 
 # önemli
-		while True:		
-			try:
-				msg = input()
-			except:
-				pass
-			cmd, con = client_parser(msg)
-			
-			if cmd == "UNSB":
-				try:
-					subslist.remove(con)
-				except:
-					pass
-			elif cmd == "BLOK":
-				bloklist.append(con)
-				continue
-			elif cmd == "DISP":
-				for i in liste:
-					print(liste[i])
-				continue
-			elif cmd == "KYRQ":
-				to_send = "KYRQ " + public_key.exportKey().decode()
-			elif cmd == "ESCN":
-				msg = "ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4]
-			elif cmd == "LIST" and con != "all":
-				try:
-					if int(con) <= 0:
-						print("ERSY")
-						continue
-				except:
-					print("ERSY")
-					continue
-###
-			try:
-				soketeYaz(s,msg)
-			except:
-				break
-			try:
-				data = s.recv(buf_size).decode()
-			except:
-				break
-			komut, icerik = parser(data)
-			if komut == "":
-				break
-			print(komut, icerik)
-			if komut == "WAIT":
-				data = s.recv(buf_size).decode()
-				komut, icerik = parser(data)
-				print(komut, icerik)
-				if komut == "ACCT" and UUID_S == None:
-					soketeYaz(s,"WHOU")
-					data = s.recv(buf_size).decode()
-					komut, icerik = parser(data)
-					UUID_S = icerik[0]
-					print("UUID_S:", UUID_S)
-			elif komut == "LSIS":
-				liste[icerik[0]] = icerik
-				if len(icerik[0])== 0:	# liste tamamen alindi
-						continue
-				while komut == "LSIS":
-					data = s.recv(buf_size).decode()
-					komut, icerik = parser(data)
-					if len(icerik[0])== 0:	# liste tamamen alindi
+				while True:		
+					try:
+						msg = input()
+					except:
 						break
-					liste[icerik[0]] = icerik
-			elif komut == "MYKY":
-				publickeylist.append([UUID_S, icerik[0]])
-			elif komut == "SIGN":
-				sig = (int(icerik[0]),)
-				text = icerik[1]
-				hash = SHA256.new(text.encode()).digest()
-				for i in publickeylist:
-					if UUID_S == i[0]:
-						print(i)
-						public_key_s = RSA.importKey(i[1])
+					cmd, con = client_parser(msg)
+					if cmd == "chus":
 						break
-				print(public_key_s.verify(hash, sig))
-			elif komut == "SUBA":
-				
-	
+					if cmd == "UNSB":
+						try:
+							following.remove(UUID_S)
+						except:
+							pass
+					elif cmd == "BLOK":
+						bloklist.append(con)
+						continue
+					elif cmd == "DISP":
+						for i in liste:
+							print(liste[i])
+						continue
+					elif cmd == "KYRQ":
+						msg = "KYRQ " + public_key.exportKey().decode()
+					elif cmd == "ESCN":
+						msg = "ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4]
+					elif cmd == "LIST" and con != "all":
+						try:
+							if int(con) <= 0:
+								print("ERSY")
+								continue
+						except:
+							print("ERSY")
+							continue
+		###
+					try:
+						soketeYaz(s,msg)
+					except:
+						break
+					try:
+						data = s.recv(buf_size).decode()
+					except:
+						break
+					komut, icerik = parser(data)
+					if komut == "":
+						break
+					print(komut, icerik)
+					if komut == "WAIT":
+						data = s.recv(buf_size).decode()
+						komut, icerik = parser(data)
+						print(komut, icerik)
+						if komut == "ACCT" and UUID_S == None:
+							soketeYaz(s,"WHOU")
+							data = s.recv(buf_size).decode()
+							komut, icerik = parser(data)
+							UUID_S = icerik[0]
+							print("UUID_S:", UUID_S)
+					elif komut == "LSIS":
+						liste[icerik[0]] = icerik
+						if len(icerik[0])== 0:	# liste tamamen alindi
+								continue
+						while komut == "LSIS":
+							data = s.recv(buf_size).decode()
+							komut, icerik = parser(data)
+							if len(icerik[0])== 0:	# liste tamamen alindi
+								break
+							liste[icerik[0]] = icerik
+					elif komut == "MYKY":
+						publickeylist.append([UUID_S, icerik[0]])
+					elif komut == "SIGN":
+						sig = (int(icerik[0]),)
+						text = icerik[1]
+						hash = SHA256.new(text.encode()).digest()
+						for i in publickeylist:
+							if UUID_S == i[0]:
+								print(i)
+								public_key_s = RSA.importKey(i[1])
+								break
+						print(public_key_s.verify(hash, sig))
+					elif komut == "SUBA":
+						following.append(UUID_S)
+				s.close()
 queueLock = threading.Lock()
 threads = []
 threadID = 1
@@ -291,7 +324,7 @@ s = socket.socket()  # Create a socket object
 host = "0.0.0.0"  # Accesible by all of the network
 
 thread = baglantiKurucu()
-#thread.start()
+thread.start()
 
 try:
 	s.bind((host, port))  # Bind to the port
