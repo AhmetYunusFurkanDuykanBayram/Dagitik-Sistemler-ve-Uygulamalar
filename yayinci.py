@@ -44,7 +44,7 @@ s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(("8.8.8.8", 80))
 ip = s.getsockname()[0]
 
-liste = {str(UUID): [str(UUID), ip, str(port), "A", "araci1"]}
+liste = {str(UUID): [str(UUID), ip, str(port), "A", "araci2"]}
 bloklist = [] 		# 
 publickeylist = []	#[uuid, publickey]
 sublist = []		
@@ -142,8 +142,6 @@ class serverThread(threading.Thread):
 				else:
 					try:
 						size = int(icerik[0])
-						if size == 0:
-							continue
 					except:
 						soketeYaz(self.c, "ERSY int")	#int bir deger degilse
 						continue
@@ -217,7 +215,14 @@ class baglantiKurucu(threading.Thread):
 				to_send = "KYRQ " + public_key.exportKey().decode()
 			elif cmd == "ESCN":
 				msg = "ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4]
-
+			elif cmd == "LIST" and con != "all":
+				try:
+					if int(con) <= 0:
+						print("ERSY")
+						continue
+				except:
+					print("ERSY")
+					continue
 ###
 			try:
 				soketeYaz(s,msg)
@@ -242,6 +247,8 @@ class baglantiKurucu(threading.Thread):
 				UUID_S = icerik[0]
 			elif komut == "LSIS":
 				liste[icerik[0]] = icerik
+				if len(icerik[0])== 0:	# liste tamamen alindi
+						continue
 				while komut == "LSIS":
 					data = s.recv(buf_size).decode()
 					komut, icerik = parser(data)
