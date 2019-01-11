@@ -19,12 +19,16 @@ UUID_file = Path("UUID.txt")
 if UUID_file.is_file():
 	f = open("UUID.txt", "r")
 	f2 = open("port.txt", "r")
+	f3 = open("nickname.txt", "r")
 	UUID = f.read()
 	port = int(f2.read())
+	nickname = f3.read()
 	f.close();
 	f2.close();
+	f3.close();
 #Degilse yeni olusturulani dosyaya yaz
 else:
+	nickname = input("Nickname Giriniz: ")
 	#Yeni UUID olusturma
 	UUID = int(random.random()*10000)
 	UUID = str(UUID)
@@ -32,10 +36,13 @@ else:
 	port = int(random.random()*63500)+2000
 	f = open("UUID.txt", "w")
 	f2 = open("port.txt", "w")
+	f3 = open("nickname.txt", "w")
 	f.write(UUID)
 	f2.write(str(port))
+	f3.write(nickname)
 	f.close();
 	f2.close();
+	f3.close();
 	
 #ip adresini ogrenme
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -44,14 +51,14 @@ ip = s.getsockname()[0]
 buf_size = 2048
 
 #listeler ve dictionary'ler
-liste = {UUID: [UUID, ip, str(port), "Y", "yayinci1"]}
+liste = {UUID: [UUID, ip, str(port), "Y", nickname]}
 bloklist = [] 		#UUID
 publickeylist = []	#[UUID, publickey]
 following = []		#UUID
 followers = []		#UUID
 mikroblogs = []		#string
 
-
+logQueue = queue.Queue()	#loglama icin kullanilacak kuyruk
 
 liste_file = Path("liste.txt")
 if liste_file.is_file():
@@ -315,7 +322,7 @@ class serverThread(threading.Thread):
 						f.write(fol+'\r\n')
 					f.close()
 				except:
-					pass	
+					pass
 				soketeYaz(self.c, "UNSA")
 			elif komut == "UNBL":
 				soketeYaz(self.c, "UNBA")
@@ -373,7 +380,19 @@ class serverThread(threading.Thread):
 							self.c.send(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
 							print(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0],"gonderildi")
 							break
-					
+			elif komut == "MESG":
+				pub_list_cont = False
+				for i in publickeylist:
+					if i[0] == UUID_C:
+						pub_list_cont = True
+						break
+				if UUID_C in bloklist:
+					soketeYaz(self.c, "BLOK")
+				elif not pub_list_cont:
+					soketeYaz(self.c, "ERKY")
+				else:
+					print(liste[UUID_C][4]+" ozel mesaj atti:",private_key.decrypt((self.c.recv(buf_size),)).decode())
+					soketeYaz(self.c, "MSGA")
 			else:
 				soketeYaz(self.c, "ERSY")
 
@@ -389,19 +408,19 @@ class baglantiKurucu(threading.Thread):
 		while not ExitFlag:
 			print("liste:")
 			for i in liste:
-				print(liste[i])
+				print("  ", liste[i])
 			print("takip edilenler:")
 			for i in following:
-				print(i)
+				print("  ",i)
 			print("takipciler:")
 			for i in followers:
-				print(i)
+				print("  ",i)
 			print("bloklular:")
 			for i in bloklist:
-				print(i)
+				print("  ",i)
 			print("mikrobloglarim:")
 			for i in reversed(mikroblogs):
-				print(i)
+				print("  ",i)
 			try:
 				tmp = input()	#CAST <mesaj> | ...
 			except:
@@ -436,8 +455,25 @@ class baglantiKurucu(threading.Thread):
 				except:
 					continue
 				UUID_S = None
+			elif secenek[0] == "con2":
+				connection_control = False
+				s=socket.socket()
+				for i in liste:
+					if liste[i][4] == tmp[5:]:
+						UUID_S = liste[i][0]
+						connection_control = True
+						break
+				if not connection_control:
+					UUID_S = None
+					continue
+				try:
+					s.connect((liste[UUID_S][1], int(liste[UUID_S][2])))
+				except:
+					UUID_S = None
+					continue
 
 # önemli
+			if secenek[0] == "con" or secenek[0] == "con2":
 				while not ExitFlag:
 					try:
 						msg = input()
@@ -490,6 +526,15 @@ class baglantiKurucu(threading.Thread):
 						except:
 							print("ERSY")
 							continue
+					elif cmd == "MESG":
+						soketeYaz(s, "MESG")
+						for p in publickeylist:
+							if p[0] == UUID_S:
+								s.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
+								print(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0],"gonderildi")
+								s.recv(buf_size).decode()	#MSGA
+								break
+						continue
 					elif cmd == "CAST":
 						s.close()
 						f = open("cast.txt", "a")
@@ -539,8 +584,8 @@ class baglantiKurucu(threading.Thread):
 					elif komut == "LSIS":
 						f = open("liste.txt", "a")
 						if len(icerik[0])== 0:	# liste tamamen alindi
-								f.close()
-								continue
+							f.close()
+							continue
 						liste[icerik[0]] = icerik
 						f.write(liste[icerik[0]][0] + ", " + liste[icerik[0]][1] + ", " + liste[icerik[0]][2] + ", " + liste[icerik[0]][3] + ", " + liste[icerik[0]][4] + '\r\n')
 						while komut == "LSIS":
@@ -586,7 +631,6 @@ class baglantiKurucu(threading.Thread):
 queueLock = threading.Lock()
 threads = []
 threadID = 1
-logQueue = queue.Queue()
 
 s = socket.socket()  # Create a socket object
 host = "0.0.0.0"  # Accesible by all of the network
