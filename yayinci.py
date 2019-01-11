@@ -4,14 +4,16 @@ import time
 import socket
 from uuid import getnode as get_mac
 from pathlib import Path 
-
+from time import sleep
 from Crypto.PublicKey import RSA
 from Crypto import Random
 from Crypto.Hash import SHA256
 
 UUID = get_mac()
 ExitFlag = False
-UUID = 12
+UUID = 1
+UUID = str(UUID)
+port = 2001  # Reserve a port for your service.
 
 buf_size = 2048
 
@@ -38,7 +40,11 @@ else:
 print(public_key.exportKey().decode())
 print(private_key.exportKey().decode())
 
-liste = {str(UUID): [str(UUID), "192.168.0.14", "2000", "A", "araci2"]}
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+ip = s.getsockname()[0]
+
+liste = {str(UUID): [str(UUID), ip, str(port), "A", "araci1"]}
 bloklist = [] 		# 
 publickeylist = []	#[uuid, publickey]
 sublist = []		
@@ -63,6 +69,7 @@ def client_parser(data):
 	return komut, icerik
 
 def soketeYaz(c, text):
+	sleep(0.05)
 	c.send((text+"\r\n").encode())
 	print(text,"gonderildi")
 
@@ -162,7 +169,7 @@ class serverThread(threading.Thread):
 			elif komut == "KYRQ":
 				publickeylist.append([UUID_C,icerik[0]])
 				res = "MYKY " + public_key.exportKey().decode()
-				soketeYaz(res)
+				soketeYaz(self.c, res)
 			else:
 				soketeYaz(self.c, "ERSY")
 
@@ -203,6 +210,8 @@ class baglantiKurucu(threading.Thread):
 				continue
 			elif cmd == "KYRQ":
 				to_send = "KYRQ " + public_key.exportKey().decode()
+			elif cmd == "ESCN":
+				msg = "ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4]
 
 ###
 			try:
@@ -238,10 +247,9 @@ logQueue = queue.Queue()
 
 s = socket.socket()  # Create a socket object
 host = "0.0.0.0"  # Accesible by all of the network
-port = 2005  # Reserve a port for your service.
 
 thread = baglantiKurucu()
-thread.start()
+#thread.start()
 
 try:
 	s.bind((host, port))  # Bind to the port
