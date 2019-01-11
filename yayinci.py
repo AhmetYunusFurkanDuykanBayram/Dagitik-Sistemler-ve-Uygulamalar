@@ -1,4 +1,4 @@
-import queue
+﻿import queue
 import threading
 import time
 import socket
@@ -8,27 +8,149 @@ from time import sleep
 from Crypto.PublicKey import RSA
 from Crypto import Random
 from Crypto.Hash import SHA256
+from os import listdir
+import random
 
-UUID = get_mac()
+#UUID = get_mac()
 ExitFlag = False
-UUID = 1
-UUID = str(UUID)
-port = 2001  # Reserve a port for your service.
 
+UUID_file = Path("UUID.txt")
+#Eger daha once UUID olusturulmussa
+if UUID_file.is_file():
+	f = open("UUID.txt", "r")
+	f2 = open("port.txt", "r")
+	UUID = f.read()
+	port = int(f2.read())
+	f.close();
+	f2.close();
+#Degilse yeni olusturulani dosyaya yaz
+else:
+	#Yeni UUID olusturma
+	UUID = int(random.random()*10000)
+	UUID = str(UUID)
+	#server icin port (2000-65500)
+	port = int(random.random()*63500)+2000
+	f = open("UUID.txt", "w")
+	f2 = open("port.txt", "w")
+	f.write(UUID)
+	f2.write(str(port))
+	f.close();
+	f2.close();
+	
+#ip adresini ogrenme
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+ip = s.getsockname()[0]
 buf_size = 2048
 
-pub_file = Path(str(UUID) + "id_rsa_pub.txt")
-pri_file = Path(str(UUID) + "id_rsa_pri.txt")
+#listeler ve dictionary'ler
+liste = {UUID: [UUID, ip, str(port), "Y", "yayinci1"]}
+bloklist = [] 		#UUID
+publickeylist = []	#[UUID, publickey]
+following = []		#UUID
+followers = []		#UUID
+mikroblogs = []		#string
 
-cast_file = Path(str(UUID) + "cast.txt")
 
-if not cast_file.is_file():
-    f = open("casted.txt", "w")
-    f.close();
-    
+
+liste_file = Path("liste.txt")
+if liste_file.is_file():
+	f = open("liste.txt", "r")
+	txt = f.read()
+	f.close();
+	ls = txt.split('\n')
+	while True:
+		try:
+			ls.remove('')
+		except:
+			break
+	for i in ls:
+		j = i.split(', ')
+		liste[j[0]] = j
+
+else:
+	f = open("liste.txt", "w")
+	f.write(liste[UUID][0] + ", " + liste[UUID][1] + ", " + liste[UUID][2] + ", " + liste[UUID][3] + ", " + liste[UUID][4] + '\r\n')
+	f.close();
+
+
+
+
+following_file = Path("following.txt")
+if following_file.is_file():
+	f = open("following.txt", "r")
+	txt = f.read()
+	following = txt.split('\n')
+	while True:
+		try:
+			following.remove('')
+		except:
+			break
+	f.close();
+else:
+	f = open("following.txt", "w")
+	f.close();
+
+
+followers_file = Path("followers.txt")
+if followers_file.is_file():
+	f = open("followers.txt", "r")
+	txt = f.read()
+	followers = txt.split('\n')
+	while True:
+		try:
+			followers.remove('')
+		except:
+			break
+	f.close();
+else:
+	f = open("followers.txt", "w")
+	f.close();
+
+bloklist_file = Path("bloklist.txt")
+if bloklist_file.is_file():
+	f = open("bloklist.txt", "r")
+	txt = f.read()
+	bloklist = txt.split('\n')
+	while True:
+		try:
+			bloklist.remove('')
+		except:
+			break
+	f.close();
+else:
+	f = open("bloklist.txt", "w")
+	f.close();
+
+
+#Varsa eski publickey listesini cekme
+for filename in listdir():
+	if(filename[-4:]==".pub"):
+		f = open(filename, "r")
+		key = RSA.importKey(f.read())
+		publickeylist.append([filename[:-4],key.exportKey().decode()])
+
+
+cast_file = Path("cast.txt")
+if cast_file.is_file():
+	f = open("cast.txt", "r")
+	txt = f.read()
+	mikroblogs = txt.split('\n')
+	while True:
+		try:
+			mikroblogs.remove('')
+		except:
+			break
+	f.close();
+else:
+	f = open("cast.txt", "w")
+	f.close();
+
+pub_file = Path("id_rsa_pub.txt")
+pri_file = Path("id_rsa_pri.txt")	
 if pub_file.is_file() and pri_file.is_file():
-	f_pub = open(str(UUID) + "id_rsa_pub.txt", "r")
-	f_pri = open(str(UUID) + "id_rsa_pri.txt", "r")
+	f_pub = open("id_rsa_pub.txt", "r")
+	f_pri = open("id_rsa_pri.txt", "r")
 	public_key = RSA.importKey(f_pub.read())
 	private_key = RSA.importKey(f_pri.read())
 else: 
@@ -36,25 +158,29 @@ else:
 	new_key = RSA.generate(2048, randfunc=random_generator)
 	public_key = new_key.publickey()
 	private_key = new_key
-	f = open(str(UUID) + 'id_rsa_pri.txt','w')
+	f = open('id_rsa_pri.txt','w')
 	f.write(private_key.exportKey().decode())
 	f.close()
-	f = open(str(UUID) + 'id_rsa_pub.txt','w')
+	f = open('id_rsa_pub.txt','w')
 	f.write(public_key.exportKey().decode())
 	f.close()
 
-print(public_key.exportKey().decode())
-print(private_key.exportKey().decode())
 
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.connect(("8.8.8.8", 80))
-ip = s.getsockname()[0]
+class loggerThread (threading.Thread):
+	def __init__(self, name, logQueue):
+		threading.Thread.__init__(self)
+		self.name = name
+		self.logQueue = logQueue
 
-liste = {str(UUID): [str(UUID), ip, str(port), "Y", "yayinci1"]}
-bloklist = [] 		# 
-publickeylist = []	#[uuid, publickey]
-following = []		
-followers = []		
+	def run(self):
+		print(self.name + " starting.")
+		while True:
+			msg = self.logQueue.get()
+			if msg == "QUIT":
+				print(self.name + ": QUIT received.")
+				break
+			print(str(time.ctime()) + " - " + str(msg))		#print yerine dosyaya yaz.
+		print(self.name + " exiting." )
 
 def parser(data):
 	if "\r\n" in data:
@@ -78,7 +204,8 @@ def client_parser(data):
 def soketeYaz(c, text):
 	sleep(0.05)
 	c.send((text+"\r\n").encode())
-	print(text,"gonderildi")
+	print(text,"gonderildi")	#print yerine logger threade yollanacak
+
 
 class serverThread(threading.Thread):
 	def __init__(self, c, addr):
@@ -88,7 +215,7 @@ class serverThread(threading.Thread):
 		
 	def run(self):
 		UUID_C = None
-		accespted = False
+		accepted = False
 		while True:
 			ERSY = False
 			try:
@@ -110,7 +237,7 @@ class serverThread(threading.Thread):
 					soketeYaz(self.c, "ERSY")
 					ERSY = True
 				
-				if not ERSY:
+				if not ERSY:	#syntax hatasi yoksa
 					soketeYaz(self.c, "WAIT")
 					try:
 						tmp = liste[UUID_C]
@@ -118,7 +245,7 @@ class serverThread(threading.Thread):
 						tmp=["","","","",""]
 					if tmp[0] == icerik[0] and tmp[1] == icerik[1] and tmp[2] == icerik[2]:
 						soketeYaz(self.c, "ACCT")
-						accespted = True
+						accepted = True
 					else:
 						try:
 							s = socket.socket()
@@ -132,15 +259,18 @@ class serverThread(threading.Thread):
 							if komut == "MYID":
 								if icerik2[0] == UUID_C:
 									soketeYaz(self.c, "ACCT")
-									accespted = True
+									accepted = True
 									liste[UUID_C]=icerik	#listeye ekleme
+									f = open("liste.txt", "a")
+									f.write(liste[UUID_C][0] + ", " + liste[UUID_C][1] + ", " + liste[UUID_C][2] + ", " + liste[UUID_C][3] + ", " + liste[UUID_C][4] + '\r\n')
+									f.close()
 								else:
 									soketeYaz(self.c, "REJT")
 						except:
 							soketeYaz(self.c, "REJT")
 			elif komut == "WHOU":
 				soketeYaz(self.c, "MYID " + str(UUID))
-			elif not accespted:
+			elif not accepted:
 				soketeYaz(self.c, "ERLO")
 			elif komut == "LIST" and len(icerik)==1:
 				size = 0
@@ -171,19 +301,79 @@ class serverThread(threading.Thread):
 				elif not pub_list_cont:
 					soketeYaz(self.c, "ERKY")
 				else:
-					followers.append(UUID_C)
+					if not UUID_C in followers:
+						f = open("followers.txt", "a")
+						f.write(UUID_C+'\r\n')
+						f.close()
+						followers.append(UUID_C)
 					soketeYaz(self.c, "SUBA")
 			elif komut == "UNSB":
-					soketeYaz(self.c, "UNSA")
+				try:
+					followers.remove(UUID_C)
+					f = open("followers.txt", "w")
+					for fol in followers:
+						f.write(fol+'\r\n')
+					f.close()
+				except:
+					pass	
+				soketeYaz(self.c, "UNSA")
+			elif komut == "UNBL":
+				soketeYaz(self.c, "UNBA")
 			elif komut == "KYRQ":
 				publickeylist.append([UUID_C,icerik[0]])
+				f = open(UUID_C+".pub", "w")
+				f.write(icerik[0]+".pub")
+				f.close()
 				res = "MYKY " + public_key.exportKey().decode()
 				soketeYaz(self.c, res)
 			elif komut == "KYCO":
-				text = 'abcdefgh'
-				hash = SHA256.new(text.encode()).digest()
-				imza = private_key.sign(hash, "")
-				soketeYaz(self.c, "SIGN " + str(imza[0]) + ", " + text)
+				pub_list_cont = False
+				for i in publickeylist:
+					if i[0] == UUID_C:
+						pub_list_cont = True
+						break
+				if not pub_list_cont:
+					soketeYaz(self.c, "ERKY")
+				else:
+					text = 'abcdefgh'
+					hash = SHA256.new(text.encode()).digest()
+					imza = private_key.sign(hash, "")
+					soketeYaz(self.c, "SIGN " + str(imza[0]) + ", " + text)
+			elif komut == "CAST":
+				print(liste[UUID_C][4]+" migroblog atti:",private_key.decrypt((self.c.recv(buf_size),)).decode())
+				soketeYaz(self.c, "CSTA")
+			elif komut == "MBRQ":
+				try:
+					num = int(icerik[0])
+				except:
+					soketeYaz(self.c, "ERSY")
+					continue
+				pub_list_cont = False
+				for i in publickeylist:
+					if i[0] == UUID_C:
+						pub_list_cont = True
+						break
+				if UUID_C in bloklist:
+					soketeYaz(self.c, "BLOK")
+				elif not pub_list_cont:
+					soketeYaz(self.c, "ERKY")
+				else:
+					num_tmp = num
+					soketeYaz(self.c,"MBLG")
+					for p in publickeylist:
+						if p[0] == UUID_C:
+
+							for mb in reversed(mikroblogs):
+								if num <=0:
+									break
+								self.c.send(RSA.importKey(p[1]).encrypt((str(num_tmp-num) + ' ' + mb).encode(), 1024)[0])
+								sleep(0.05)
+								print(RSA.importKey(p[1]).encrypt(mb.encode(), 1024)[0],"gonderildi")
+								num = num - 1
+							self.c.send(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
+							print(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0],"gonderildi")
+							break
+					
 			else:
 				soketeYaz(self.c, "ERSY")
 
@@ -196,17 +386,32 @@ class baglantiKurucu(threading.Thread):
 		threading.Thread.__init__(self)
 	
 	def run(self):
-		while True:
+		while not ExitFlag:
 			print("liste:")
 			for i in liste:
 				print(liste[i])
 			print("takip edilenler:")
 			for i in following:
 				print(i)
-	
-			tmp = input()	#CAST <mesaj> | ...
+			print("takipciler:")
+			for i in followers:
+				print(i)
+			print("bloklular:")
+			for i in bloklist:
+				print(i)
+			print("mikrobloglarim:")
+			for i in reversed(mikroblogs):
+				print(i)
+			try:
+				tmp = input()	#CAST <mesaj> | ...
+			except:
+				break
 			secenek = tmp.split(" ")
 			if secenek[0] == "CAST":
+				f = open("cast.txt", "a")
+				f.write(tmp[5:]+'\r\n')
+				f.close()
+				mikroblogs.append(tmp[5:])
 				for i in followers:
 					s=socket.socket()
 					s.connect((liste[i][1], int(liste[i][2])))
@@ -217,11 +422,9 @@ class baglantiKurucu(threading.Thread):
 						print("ACCT aldim")
 						for p in publickeylist:
 							if p[0] == i:
-								print(p[1])
-								print(tmp[5:].encode())
-								x="CAST "+ RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)
-								print(x)
-								soketeYaz(s,x)
+								soketeYaz(s,"CAST")
+								s.send(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0])
+								print(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0],"gonderildi")
 								s.recv(buf_size).decode()	#CSTA
 								break
 					s.close()
@@ -235,7 +438,7 @@ class baglantiKurucu(threading.Thread):
 				UUID_S = None
 
 # önemli
-				while True:		
+				while not ExitFlag:
 					try:
 						msg = input()
 					except:
@@ -246,11 +449,31 @@ class baglantiKurucu(threading.Thread):
 					if cmd == "UNSB":
 						try:
 							following.remove(UUID_S)
+							f = open("following.txt", "w")
+							for fol in following:
+								f.write(fol+'\r\n')
+							f.close()
 						except:
 							pass
 					elif cmd == "BLOK":
-						bloklist.append(con)
-						continue
+						if UUID_S is None:
+							pass
+						else:
+							f = open("bloklist.txt", "a")
+							f.write(UUID_S+'\r\n')
+							f.close()
+							bloklist.append(UUID_S)
+							continue
+					elif cmd == "UNBL":
+						if UUID_S is not None:
+							try:
+								bloklist.remove(UUID_S)
+								f = open("bloklist.txt", "w")
+								for bl in bloklist:
+									f.write(bl+'\r\n')
+								f.close()
+							except:
+								pass
 					elif cmd == "DISP":
 						for i in liste:
 							print(liste[i])
@@ -267,6 +490,29 @@ class baglantiKurucu(threading.Thread):
 						except:
 							print("ERSY")
 							continue
+					elif cmd == "CAST":
+						s.close()
+						f = open("cast.txt", "a")
+						f.write(con+'\r\n')
+						f.close()
+						mikroblogs.append(con)
+						for i in followers:
+							s_cast=socket.socket()
+							s_cast.connect((liste[i][1], int(liste[i][2])))
+							soketeYaz(s_cast,"ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4])
+							k, sec = parser(s_cast.recv(buf_size).decode())	#WAIT al
+							k, sec = parser(s_cast.recv(buf_size).decode())
+							if k == "ACCT":
+								print("ACCT aldim")
+								for p in publickeylist:
+									if p[0] == i:
+										soketeYaz(s_cast,"CAST")
+										s_cast.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
+										print(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0],"gonderildi")
+										s_cast.recv(buf_size).decode()	#CSTA
+										break
+							s_cast.close()
+						break
 		###
 					try:
 						soketeYaz(s,msg)
@@ -291,17 +537,25 @@ class baglantiKurucu(threading.Thread):
 							UUID_S = icerik[0]
 							print("UUID_S:", UUID_S)
 					elif komut == "LSIS":
-						liste[icerik[0]] = icerik
+						f = open("liste.txt", "a")
 						if len(icerik[0])== 0:	# liste tamamen alindi
+								f.close()
 								continue
+						liste[icerik[0]] = icerik
+						f.write(liste[icerik[0]][0] + ", " + liste[icerik[0]][1] + ", " + liste[icerik[0]][2] + ", " + liste[icerik[0]][3] + ", " + liste[icerik[0]][4] + '\r\n')
 						while komut == "LSIS":
 							data = s.recv(buf_size).decode()
 							komut, icerik = parser(data)
 							if len(icerik[0])== 0:	# liste tamamen alindi
+								f.close()
 								break
 							liste[icerik[0]] = icerik
+							f.write(liste[icerik[0]][0] + ", " + liste[icerik[0]][1] + ", " + liste[icerik[0]][2] + ", " + liste[icerik[0]][3] + ", " + liste[icerik[0]][4] + '\r\n')
 					elif komut == "MYKY":
 						publickeylist.append([UUID_S, icerik[0]])
+						f = open(UUID_S+".pub", "w")
+						f.write(icerik[0])
+						f.close()
 					elif komut == "SIGN":
 						sig = (int(icerik[0]),)
 						text = icerik[1]
@@ -313,8 +567,22 @@ class baglantiKurucu(threading.Thread):
 								break
 						print(public_key_s.verify(hash, sig))
 					elif komut == "SUBA":
-						following.append(UUID_S)
+						if not UUID_S in following:
+							f = open("following.txt", "a")
+							f.write(UUID_S+'\r\n')
+							f.close()
+							following.append(UUID_S)
+					elif komut == "MBLG":
+						while True:
+							mb = private_key.decrypt((s.recv(buf_size),)).decode()
+							if mb[:2] == '-1':
+								break
+							mb = mb[mb.index(' ')+1:]
+							print("migroblog",mb)
+					
 				s.close()
+
+
 queueLock = threading.Lock()
 threads = []
 threadID = 1
