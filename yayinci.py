@@ -17,12 +17,12 @@ port = 2001  # Reserve a port for your service.
 
 buf_size = 2048
 
-pub_file = Path(str(UUID) + "id_rsa_pri.txt")
-pri_file = Path(str(UUID) + "id_rsa_pub.txt")
+pub_file = Path(str(UUID) + "id_rsa_pub.txt")
+pri_file = Path(str(UUID) + "id_rsa_pri.txt")
 
 if pub_file.is_file() and pri_file.is_file():
-	f_pub = open(str(UUID) + "id_rsa_pri.txt", "r")
-	f_pri = open(str(UUID) + "id_rsa_pub.txt", "r")
+	f_pub = open(str(UUID) + "id_rsa_pub.txt", "r")
+	f_pri = open(str(UUID) + "id_rsa_pri.txt", "r")
 	public_key = RSA.importKey(f_pub.read())
 	private_key = RSA.importKey(f_pri.read())
 else: 
@@ -142,8 +142,11 @@ class serverThread(threading.Thread):
 				else:
 					try:
 						size = int(icerik[0])
+						if size == 0:
+							continue
 					except:
-						soketeYaz(self.c, "ERSY")	#int bir deger degilse
+						soketeYaz(self.c, "ERSY int")	#int bir deger degilse
+						continue
 				
 				for l in liste:
 					if size <=0:
@@ -238,12 +241,13 @@ class baglantiKurucu(threading.Thread):
 				komut, icerik = parser(data)
 				UUID_S = icerik[0]
 			elif komut == "LSIS":
+				liste[icerik[0]] = icerik
 				while komut == "LSIS":
 					data = s.recv(buf_size).decode()
 					komut, icerik = parser(data)
 					if len(icerik[0])== 0:	# liste tamamen alindi
 						break
-					print(komut, icerik)
+					liste[icerik[0]] = icerik
 			elif komut == "MYKY":
 				publickeylist.append([UUID_S, icerik[0]])	
 	
