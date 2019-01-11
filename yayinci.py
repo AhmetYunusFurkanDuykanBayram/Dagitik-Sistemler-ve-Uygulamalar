@@ -150,6 +150,7 @@ class serverThread(threading.Thread):
 						break
 					soketeYaz(self.c, "LSIS " + liste[l][0] + ", " + liste[l][1] + ", " + liste[l][2] + ", " + liste[l][3] + ", " + liste[l][4])
 					size = size-1
+				soketeYaz(self.c, "LSIS")
 # yayıncı
 			elif komut == "SUBS":
 				pub_list_cont = False
@@ -187,6 +188,7 @@ class baglantiKurucu(threading.Thread):
 			return
 		s=socket.socket()
 		s.connect((tmp[0], int(tmp[1])))
+		UUID_S = None
 
 # önemli
 		while True:		
@@ -230,6 +232,11 @@ class baglantiKurucu(threading.Thread):
 				data = s.recv(buf_size).decode()
 				komut, icerik = parser(data)
 				print(komut, icerik)
+			elif komut == "ACCT" and UUID_S == None:
+				soketeYaz(s,"WHOU")
+				data = s.recv(buf_size).decode()
+				komut, icerik = parser(data)
+				UUID_S = icerik[0]
 			elif komut == "LSIS":
 				while komut == "LSIS":
 					data = s.recv(buf_size).decode()
@@ -238,7 +245,7 @@ class baglantiKurucu(threading.Thread):
 						break
 					print(komut, icerik)
 			elif komut == "MYKY":
-				publickeylist.append([UUID_C,icerik[0]])	
+				publickeylist.append([UUID_S, icerik[0]])	
 	
 queueLock = threading.Lock()
 threads = []
