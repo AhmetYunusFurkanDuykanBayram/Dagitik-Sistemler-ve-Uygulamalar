@@ -197,7 +197,7 @@ class loggerThread (threading.Thread):
 				f.close();
 				break
 			f = open("log.txt", "a")
-			f.write(str(time.ctime()) + " - " + str(msg) + '\r\n')		#print yerine dosyaya yaz.
+			f.write(str(time.ctime()) + " - " + str(msg) + '\r\n')
 			f.close();
 		f = open("log.txt", "a")
 		f.write(str(time.ctime()) + " - " + "Exiting." + '\r\n')
@@ -211,6 +211,8 @@ def parser(data):
 	komut = data[:4]
 	icerik = data[5:]
 	list = icerik.split(", ")
+	if komut == "ERSY" or komut == "ERLO" or komut == "ERKY":
+		print(komut)
 	return komut, list
 
 def client_parser(data):
@@ -225,7 +227,7 @@ def client_parser(data):
 def soketeYaz(c, text):
 	sleep(0.05)
 	c.send((text+"\r\n").encode())
-	logQueue.put(text + " gonderildi")	#print yerine logger threade yollanacak
+	logQueue.put(text + " gonderildi")
 
 
 class serverThread(threading.Thread):
@@ -243,6 +245,8 @@ class serverThread(threading.Thread):
 				data = self.c.recv(buf_size).decode()
 				if len(data) == 0:	#karsi taraf Ctrl C ile kapatirsa bos string okuyor
 					break
+				logQueue.put(data[:-2] + " alindi")
+				
 			except:
 				break
 			komut, icerik = parser(data)
@@ -273,7 +277,7 @@ class serverThread(threading.Thread):
 							s.connect((adres,int(port)))
 							soketeYaz(s, "WHOU")
 							data = s.recv(buf_size).decode()
-							print(data)
+							logQueue.put(data[:-2] + " alindi")
 							s.close()
 							
 							komut, icerik2 = parser(data)
@@ -361,7 +365,9 @@ class serverThread(threading.Thread):
 					imza = private_key.sign(hash, "")
 					soketeYaz(self.c, "SIGN " + str(imza[0]) + ", " + text)
 			elif komut == "CAST":
-				print(liste[UUID_C][4]+" migroblog atti:",private_key.decrypt((self.c.recv(buf_size),)).decode())
+				mb = (self.c.recv(buf_size),)
+				print(liste[UUID_C][4]+" mikroblog atti:",private_key.decrypt(mb).decode())
+				logQueue.put(liste[UUID_C][4]+" mikroblog atti: " + private_key.decrypt(mb).decode())
 				soketeYaz(self.c, "CSTA")
 			elif komut == "MBRQ":
 				try:
@@ -388,12 +394,11 @@ class serverThread(threading.Thread):
 								if num <=0:
 									break
 								self.c.send(RSA.importKey(p[1]).encrypt((str(num_tmp-num) + ' ' + mb).encode(), 1024)[0])
-								logQueue.put("mikroblog gonderildi")
+								logQueue.put(RSA.importKey(p[1]).encrypt((str(num_tmp-num) + ' ' + mb).encode(), 1024)[0])
 								sleep(0.05)
 								num = num - 1
 							self.c.send(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
-							logQueue.put(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
-							logQueue.put("mikroblog gonderildi")
+							logQueue.put("-1 gonderildi")
 							sleep(0.05)
 							break
 			elif komut == "MESG":
@@ -451,18 +456,23 @@ class baglantiKurucu(threading.Thread):
 				f.close()
 				mikroblogs.append(tmp[5:])
 				for i in followers:
+					if i in bloklist:
+						continue
 					s=socket.socket()
 					s.connect((liste[i][1], int(liste[i][2])))
 					soketeYaz(s,"ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4])
 					k, sec = parser(s.recv(buf_size).decode())	#WAIT al
+					logQueue.put(k+" alindi")
 					k, sec = parser(s.recv(buf_size).decode())
+					logQueue.put(k+" alindi")
 					if k == "ACCT":
 						for p in publickeylist:
 							if p[0] == i:
 								soketeYaz(s,"CAST")
 								s.send(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0])
-								logQueue.put("mikroblog gonderildi")
-								s.recv(buf_size).decode()	#CSTA
+								logQueue.put(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0])
+								k, sec = parser(s.recv(buf_size).decode())	#CSTA al
+								logQueue.put(k+" alindi")
 								break
 					s.close()
 		
@@ -490,7 +500,7 @@ class baglantiKurucu(threading.Thread):
 					UUID_S = None
 					continue
 
-# önemli
+##
 			if secenek[0] == "con" or secenek[0] == "con2":
 				while not ExitFlag:
 					try:
@@ -540,20 +550,25 @@ class baglantiKurucu(threading.Thread):
 						try:
 							if int(con) <= 0:
 								print("ERSY")
+								logQueue.put("ERSY alindi")
 								continue
 						except:
 							print("ERSY")
+							logQueue.put("ERSY alindi")
 							continue
 					elif cmd == "MESG":
 						soketeYaz(s, "MESG")
 						mesg_cevabi, mesg_cevabi2 = parser(s.recv(buf_size).decode())
+						logQueue.put(mesg_cevabi + " alindi")
 						if mesg_cevabi == "MSGA":
-							logQueue.put("MSGA alindi")
 							for p in publickeylist:
 								if p[0] == UUID_S:
 									s.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
-									logQueue.put("ozel mesaj gonderildi")
+									logQueue.put(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
 									break
+						else:
+							print(mesg_cevabi)
+							
 						continue
 					elif cmd == "CAST":
 						s.close()
@@ -562,19 +577,23 @@ class baglantiKurucu(threading.Thread):
 						f.close()
 						mikroblogs.append(con)
 						for i in followers:
+							if i in bloklist:
+								continue
 							s_cast=socket.socket()
 							s_cast.connect((liste[i][1], int(liste[i][2])))
 							soketeYaz(s_cast,"ESCN " + liste[str(UUID)][0] + ", " + liste[str(UUID)][1] + ", " + liste[str(UUID)][2] + ", " + liste[str(UUID)][3] + ", " + liste[str(UUID)][4])
 							k, sec = parser(s_cast.recv(buf_size).decode())	#WAIT al
+							logQueue.put(k+" alindi")
 							k, sec = parser(s_cast.recv(buf_size).decode())
+							logQueue.put(k+" alindi")
 							if k == "ACCT":
-								print("ACCT aldim")
 								for p in publickeylist:
 									if p[0] == i:
 										soketeYaz(s_cast,"CAST")
 										s_cast.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
-										logQueue.put(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0] + " gonderildi")
-										s_cast.recv(buf_size).decode()	#CSTA
+										logQueue.put(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
+										k, sec = parser(s_cast.recv(buf_size).decode())	#CSTA al
+										logQueue.put(k+" alindi")
 										break
 							s_cast.close()
 						break
@@ -590,14 +609,15 @@ class baglantiKurucu(threading.Thread):
 					komut, icerik = parser(data)
 					if komut == "":
 						break
-					print(komut, icerik)
+					logQueue.put(data[:-2]+" alindi")
 					if komut == "WAIT":
 						data = s.recv(buf_size).decode()
 						komut, icerik = parser(data)
-						print(komut, icerik)
+						logQueue.put(data[:-2]+" alindi")
 						if komut == "ACCT" and UUID_S == None:
 							soketeYaz(s,"WHOU")
 							data = s.recv(buf_size).decode()
+							logQueue.put(data[:-2]+" alindi")
 							komut, icerik = parser(data)
 							UUID_S = icerik[0]
 							print("UUID_S:", UUID_S)
@@ -610,6 +630,7 @@ class baglantiKurucu(threading.Thread):
 						f.write(liste[icerik[0]][0] + ", " + liste[icerik[0]][1] + ", " + liste[icerik[0]][2] + ", " + liste[icerik[0]][3] + ", " + liste[icerik[0]][4] + '\r\n')
 						while komut == "LSIS":
 							data = s.recv(buf_size).decode()
+							logQueue.put(data[:-2]+" alindi")
 							komut, icerik = parser(data)
 							if len(icerik[0])== 0:	# liste tamamen alindi
 								f.close()
@@ -641,9 +662,11 @@ class baglantiKurucu(threading.Thread):
 						while True:
 							mb = private_key.decrypt((s.recv(buf_size),)).decode()
 							if mb[:2] == '-1':
+								logQueue.put("-1 alindi")
 								break
 							mb = mb[mb.index(' ')+1:]
 							print("migroblog",mb)
+							logQueue.put("migroblog " + mb + " alindi")
 					
 				s.close()
 
