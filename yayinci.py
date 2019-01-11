@@ -3,10 +3,36 @@ import threading
 import time
 import socket
 from uuid import getnode as get_mac
-UUID = get_mac()
+from pathlib import Path 
 
+from Crypto.PublicKey import RSA
+from Crypto import Random
+from Crypto.Hash import SHA256ü
+
+UUID = get_mac()
 ExitFlag = False
 UUID = 12
+
+pub_file = Path(UUID + "id_rsa.txt")
+pri_file = Path(UUID + "id_rsa_pub.txt")
+
+if pub_file.is_file() and pri_file.is_file():
+	f_pub = open(UUID + "id_rsa.txt", "r")
+	f_pri = open(UUID + "id_rsa_pub.txt", "r")
+	public_key = RSA.importKey(f_pub.read())
+	private_key = RSA.importKey(f_pri.read())
+else: 
+	random_generator = Random.new().read
+	new_key = RSA.generate(2048, randfunc=random_generator)
+	public_key = new_key.publickey()
+	private_key = new_key
+	f = open(UUID + 'id_rsa_pri.txt','w')
+	f.write(private_key.exportKey().decode())
+	f.close()
+	f = open(UUID + 'id_rsa_pub.txt','w')
+	f.write(public_key.exportKey().decode())
+	f.close()
+
 liste = {str(UUID): [str(UUID), "192.168.0.14", "2000", "A", "araci2"]}
 bloklist = [] 		# 
 publickeylist = []	#[uuid, publickey]
@@ -29,7 +55,7 @@ def client_parser(data):
 		data = data[:-1]
 	komut = data[:4]
 	icerik = data[5:]
-	return komut, içerik
+	return komut, icerik
 
 def soketeYaz(c, text):
 	c.send((text+"\r\n").encode())
@@ -116,15 +142,15 @@ class serverThread(threading.Thread):
 			elif komut == "SUBS":
 				pub_list_cont = False
 				for i in publickeylist:
-					if i[0] == UUID_c:
+					if i[0] == UUID_C:
 						pub_list_cont = True
 						break
-				if UUID_c in bloklist:
+				if UUID_C in bloklist:
 					soketeYaz(self.c, "BLOK")
 				elif not pub_list_cont:
 					soketeYaz(self.c, "ERKY")
 				else:
-					sublist.append(UUID_c)
+					sublist.append(UUID_C)
 					soketeYaz(self.c, "SUBA")
 			elif komut == "UNSB":
 					soketeYaz(self.c, "UNSA")
@@ -153,16 +179,20 @@ class baglantiKurucu(threading.Thread):
 
 # önemli
 		while True:		
-			msg = input()
-			cmd, con = client_parser(msg)		
+			try:
+				msg = input()
+			except:
+				pass
 			
+
+
+
+			cmd, con = client_parser(msg)					
 			if cmd == "UNSB":
 				try:
 					sublist.remove(con)
 				except:
 					pass
-
-
 ###
 			try:
 				soketeYaz(s,msg)
@@ -184,7 +214,7 @@ class baglantiKurucu(threading.Thread):
 				while komut == "LSIS":
 					data = s.recv(1024).decode()
 					komut, icerik = parser(data)
-					if len(icerik)== 0:	# liste tamamen alindi
+					if len(icerik[0])== 0:	# liste tamamen alindi
 						break
 					print(komut, icerik)
 
@@ -195,7 +225,7 @@ logQueue = queue.Queue()
 
 s = socket.socket()  # Create a socket object
 host = "0.0.0.0"  # Accesible by all of the network
-port = 2008  # Reserve a port for your service.
+port = 2005  # Reserve a port for your service.
 
 thread = baglantiKurucu()
 thread.start()
