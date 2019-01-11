@@ -58,7 +58,7 @@ following = []		#UUID
 followers = []		#UUID
 mikroblogs = []		#string
 
-logQueue = queue.Queue()	#loglama icin kullanilacak kuyruk
+
 
 liste_file = Path("liste.txt")
 if liste_file.is_file():
@@ -79,8 +79,6 @@ else:
 	f = open("liste.txt", "w")
 	f.write(liste[UUID][0] + ", " + liste[UUID][1] + ", " + liste[UUID][2] + ", " + liste[UUID][3] + ", " + liste[UUID][4] + '\r\n')
 	f.close();
-
-
 
 
 following_file = Path("following.txt")
@@ -173,21 +171,37 @@ else:
 	f.close()
 
 
+log_file = Path("log.txt")
+if not log_file.is_file():
+	f = open("log.txt", "w")
+	f.close();
+
+
 class loggerThread (threading.Thread):
-	def __init__(self, name, logQueue):
+	def __init__(self):
 		threading.Thread.__init__(self)
-		self.name = name
-		self.logQueue = logQueue
 
 	def run(self):
-		print(self.name + " starting.")
+		f = open("log.txt", "a")
+		f.write(str(time.ctime()) + " - " + "Starting." + '\r\n')
+		f.close();
+		
 		while True:
-			msg = self.logQueue.get()
+			try:
+				msg = logQueue.get()
+			except:
+				msg = "QUIT"
 			if msg == "QUIT":
-				print(self.name + ": QUIT received.")
+				f = open("log.txt", "a")
+				f.write(str(time.ctime()) + " - " + "QUIT received." + '\r\n')
+				f.close();
 				break
-			print(str(time.ctime()) + " - " + str(msg))		#print yerine dosyaya yaz.
-		print(self.name + " exiting." )
+			f = open("log.txt", "a")
+			f.write(str(time.ctime()) + " - " + str(msg) + '\r\n')		#print yerine dosyaya yaz.
+			f.close();
+		f = open("log.txt", "a")
+		f.write(str(time.ctime()) + " - " + "Exiting." + '\r\n')
+		f.close();
 
 def parser(data):
 	if "\r\n" in data:
@@ -211,7 +225,7 @@ def client_parser(data):
 def soketeYaz(c, text):
 	sleep(0.05)
 	c.send((text+"\r\n").encode())
-	print(text,"gonderildi")	#print yerine logger threade yollanacak
+	logQueue.put(text + " gonderildi")	#print yerine logger threade yollanacak
 
 
 class serverThread(threading.Thread):
@@ -374,11 +388,13 @@ class serverThread(threading.Thread):
 								if num <=0:
 									break
 								self.c.send(RSA.importKey(p[1]).encrypt((str(num_tmp-num) + ' ' + mb).encode(), 1024)[0])
+								logQueue.put("mikroblog gonderildi")
 								sleep(0.05)
-								print(RSA.importKey(p[1]).encrypt(mb.encode(), 1024)[0],"gonderildi")
 								num = num - 1
 							self.c.send(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
-							print(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0],"gonderildi")
+							logQueue.put(RSA.importKey(p[1]).encrypt(str(-1).encode(), 1024)[0])
+							logQueue.put("mikroblog gonderildi")
+							sleep(0.05)
 							break
 			elif komut == "MESG":
 				pub_list_cont = False
@@ -391,13 +407,16 @@ class serverThread(threading.Thread):
 				elif not pub_list_cont:
 					soketeYaz(self.c, "ERKY")
 				else:
-					print(liste[UUID_C][4]+" ozel mesaj atti:",private_key.decrypt((self.c.recv(buf_size),)).decode())
 					soketeYaz(self.c, "MSGA")
+					ozel_mesaj = (self.c.recv(buf_size),)
+					print(liste[UUID_C][4]+" ozel mesaj atti:",private_key.decrypt(ozel_mesaj).decode())
+					logQueue.put(liste[UUID_C][4] + " ozel mesaj atti: " + private_key.decrypt(ozel_mesaj).decode())
 			else:
 				soketeYaz(self.c, "ERSY")
 
 		self.c.close()
 		print("baglanti kapatildi")
+		logQueue.put("baglanti kapatildi")
 
 
 class baglantiKurucu(threading.Thread):
@@ -438,12 +457,11 @@ class baglantiKurucu(threading.Thread):
 					k, sec = parser(s.recv(buf_size).decode())	#WAIT al
 					k, sec = parser(s.recv(buf_size).decode())
 					if k == "ACCT":
-						print("ACCT aldim")
 						for p in publickeylist:
 							if p[0] == i:
 								soketeYaz(s,"CAST")
 								s.send(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0])
-								print(RSA.importKey(p[1]).encrypt(tmp[5:].encode(), 1024)[0],"gonderildi")
+								logQueue.put("mikroblog gonderildi")
 								s.recv(buf_size).decode()	#CSTA
 								break
 					s.close()
@@ -528,12 +546,14 @@ class baglantiKurucu(threading.Thread):
 							continue
 					elif cmd == "MESG":
 						soketeYaz(s, "MESG")
-						for p in publickeylist:
-							if p[0] == UUID_S:
-								s.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
-								print(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0],"gonderildi")
-								s.recv(buf_size).decode()	#MSGA
-								break
+						mesg_cevabi, mesg_cevabi2 = parser(s.recv(buf_size).decode())
+						if mesg_cevabi == "MSGA":
+							logQueue.put("MSGA alindi")
+							for p in publickeylist:
+								if p[0] == UUID_S:
+									s.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
+									logQueue.put("ozel mesaj gonderildi")
+									break
 						continue
 					elif cmd == "CAST":
 						s.close()
@@ -553,7 +573,7 @@ class baglantiKurucu(threading.Thread):
 									if p[0] == i:
 										soketeYaz(s_cast,"CAST")
 										s_cast.send(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0])
-										print(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0],"gonderildi")
+										logQueue.put(RSA.importKey(p[1]).encrypt(con.encode(), 1024)[0] + " gonderildi")
 										s_cast.recv(buf_size).decode()	#CSTA
 										break
 							s_cast.close()
@@ -631,12 +651,17 @@ class baglantiKurucu(threading.Thread):
 queueLock = threading.Lock()
 threads = []
 threadID = 1
+logQueue = queue.Queue()
 
 s = socket.socket()  # Create a socket object
 host = "0.0.0.0"  # Accesible by all of the network
 
 thread = baglantiKurucu()
 thread.start()
+
+thread = loggerThread()
+thread.start()
+
 
 try:
 	s.bind((host, port))  # Bind to the port
