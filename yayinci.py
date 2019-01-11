@@ -20,6 +20,12 @@ buf_size = 2048
 pub_file = Path(str(UUID) + "id_rsa_pub.txt")
 pri_file = Path(str(UUID) + "id_rsa_pri.txt")
 
+cast_file = Path(str(UUID) + "cast.txt")
+
+if not cast_file.is_file():
+    f = open("casted.txt", "w")
+    f.close();
+    
 if pub_file.is_file() and pri_file.is_file():
 	f_pub = open(str(UUID) + "id_rsa_pub.txt", "r")
 	f_pri = open(str(UUID) + "id_rsa_pri.txt", "r")
@@ -206,7 +212,7 @@ class baglantiKurucu(threading.Thread):
 			
 			if cmd == "UNSB":
 				try:
-					sublist.remove(con)
+					subslist.remove(con)
 				except:
 					pass
 			elif cmd == "BLOK":
@@ -273,7 +279,8 @@ class baglantiKurucu(threading.Thread):
 						public_key_s = RSA.importKey(i[1])
 						break
 				print(public_key_s.verify(hash, sig))
-					
+			elif komut == "SUBA":
+				
 	
 queueLock = threading.Lock()
 threads = []
