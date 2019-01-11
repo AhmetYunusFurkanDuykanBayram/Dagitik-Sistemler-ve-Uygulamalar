@@ -13,6 +13,8 @@ UUID = get_mac()
 ExitFlag = False
 UUID = 12
 
+buf_size = 2048
+
 pub_file = Path(str(UUID) + "id_rsa_pri.txt")
 pri_file = Path(str(UUID) + "id_rsa_pub.txt")
 
@@ -76,7 +78,7 @@ class serverThread(threading.Thread):
 		while True:
 			ERSY = False
 			try:
-				data = self.c.recv(1024).decode()
+				data = self.c.recv(buf_size).decode()
 				if len(data) == 0:	#karsi taraf Ctrl C ile kapatirsa bos string okuyor
 					break
 			except:
@@ -108,7 +110,7 @@ class serverThread(threading.Thread):
 							s = socket.socket()
 							s.connect((adres,int(port)))
 							soketeYaz(s, "WHOU")
-							data = s.recv(1024).decode()
+							data = s.recv(buf_size).decode()
 							print(data)
 							s.close()
 							
@@ -157,15 +159,12 @@ class serverThread(threading.Thread):
 					soketeYaz(self.c, "SUBA")
 			elif komut == "UNSB":
 					soketeYaz(self.c, "UNSA")
-		
-		
+			elif komut == "KYRQ":
+				publickeylist.append([UUID_C,icerik[0]])
+				res = "MYKY " + public_key.exportKey().decode()
+				soketeYaz(res)
 			else:
 				soketeYaz(self.c, "ERSY")
-		
-
-
-
-
 
 		self.c.close()
 		print("baglanti kapatildi")
@@ -188,23 +187,30 @@ class baglantiKurucu(threading.Thread):
 				msg = input()
 			except:
 				pass
+			cmd, con = client_parser(msg)
 			
-
-
-
-			cmd, con = client_parser(msg)					
 			if cmd == "UNSB":
 				try:
 					sublist.remove(con)
 				except:
 					pass
+			elif cmd == "BLOK":
+				bloklist.append(con)
+				continue
+			elif cmd == "DISP":
+				for i in liste:
+					print(liste[i])
+				continue
+			elif cmd == "KYRQ":
+				to_send = "KYRQ " + public_key.exportKey().decode()
+
 ###
 			try:
 				soketeYaz(s,msg)
 			except:
 				break
 			try:
-				data = s.recv(1024).decode()
+				data = s.recv(buf_size).decode()
 			except:
 				break
 			komut, icerik = parser(data)
@@ -212,17 +218,19 @@ class baglantiKurucu(threading.Thread):
 				break
 			print(komut, icerik)
 			if komut == "WAIT":
-				data = s.recv(1024).decode()
+				data = s.recv(buf_size).decode()
 				komut, icerik = parser(data)
 				print(komut, icerik)
-			else:
+			elif komut == "LSIS":
 				while komut == "LSIS":
-					data = s.recv(1024).decode()
+					data = s.recv(buf_size).decode()
 					komut, icerik = parser(data)
 					if len(icerik[0])== 0:	# liste tamamen alindi
 						break
 					print(komut, icerik)
-
+			elif komut == "MYKY":
+				publickeylist.append([UUID_C,icerik[0]])	
+	
 queueLock = threading.Lock()
 threads = []
 threadID = 1
