@@ -7,18 +7,18 @@ from pathlib import Path
 
 from Crypto.PublicKey import RSA
 from Crypto import Random
-from Crypto.Hash import SHA256ü
+from Crypto.Hash import SHA256
 
 UUID = get_mac()
 ExitFlag = False
 UUID = 12
 
-pub_file = Path(UUID + "id_rsa.txt")
-pri_file = Path(UUID + "id_rsa_pub.txt")
+pub_file = Path(str(UUID) + "id_rsa_pri.txt")
+pri_file = Path(str(UUID) + "id_rsa_pub.txt")
 
 if pub_file.is_file() and pri_file.is_file():
-	f_pub = open(UUID + "id_rsa.txt", "r")
-	f_pri = open(UUID + "id_rsa_pub.txt", "r")
+	f_pub = open(str(UUID) + "id_rsa_pri.txt", "r")
+	f_pri = open(str(UUID) + "id_rsa_pub.txt", "r")
 	public_key = RSA.importKey(f_pub.read())
 	private_key = RSA.importKey(f_pri.read())
 else: 
@@ -26,12 +26,15 @@ else:
 	new_key = RSA.generate(2048, randfunc=random_generator)
 	public_key = new_key.publickey()
 	private_key = new_key
-	f = open(UUID + 'id_rsa_pri.txt','w')
+	f = open(str(UUID) + 'id_rsa_pri.txt','w')
 	f.write(private_key.exportKey().decode())
 	f.close()
-	f = open(UUID + 'id_rsa_pub.txt','w')
+	f = open(str(UUID) + 'id_rsa_pub.txt','w')
 	f.write(public_key.exportKey().decode())
 	f.close()
+
+print(public_key.exportKey().decode())
+print(private_key.exportKey().decode())
 
 liste = {str(UUID): [str(UUID), "192.168.0.14", "2000", "A", "araci2"]}
 bloklist = [] 		# 
@@ -154,6 +157,8 @@ class serverThread(threading.Thread):
 					soketeYaz(self.c, "SUBA")
 			elif komut == "UNSB":
 					soketeYaz(self.c, "UNSA")
+		
+		
 			else:
 				soketeYaz(self.c, "ERSY")
 		
