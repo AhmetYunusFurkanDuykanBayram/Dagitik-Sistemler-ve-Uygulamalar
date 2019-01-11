@@ -172,6 +172,11 @@ class serverThread(threading.Thread):
 				publickeylist.append([UUID_C,icerik[0]])
 				res = "MYKY " + public_key.exportKey().decode()
 				soketeYaz(self.c, res)
+			elif komut == "KYCO":
+				text = 'abcdefgh'
+				hash = SHA256.new(text.encode()).digest()
+				imza = private_key.sign(hash, "")
+				soketeYaz(self.c, "SIGN " + str(imza[0]) + ", " + text)
 			else:
 				soketeYaz(self.c, "ERSY")
 
@@ -240,11 +245,12 @@ class baglantiKurucu(threading.Thread):
 				data = s.recv(buf_size).decode()
 				komut, icerik = parser(data)
 				print(komut, icerik)
-			elif komut == "ACCT" and UUID_S == None:
-				soketeYaz(s,"WHOU")
-				data = s.recv(buf_size).decode()
-				komut, icerik = parser(data)
-				UUID_S = icerik[0]
+				if komut == "ACCT" and UUID_S == None:
+					soketeYaz(s,"WHOU")
+					data = s.recv(buf_size).decode()
+					komut, icerik = parser(data)
+					UUID_S = icerik[0]
+					print("UUID_S:", UUID_S)
 			elif komut == "LSIS":
 				liste[icerik[0]] = icerik
 				if len(icerik[0])== 0:	# liste tamamen alindi
@@ -256,7 +262,18 @@ class baglantiKurucu(threading.Thread):
 						break
 					liste[icerik[0]] = icerik
 			elif komut == "MYKY":
-				publickeylist.append([UUID_S, icerik[0]])	
+				publickeylist.append([UUID_S, icerik[0]])
+			elif komut == "SIGN":
+				sig = (int(icerik[0]),)
+				text = icerik[1]
+				hash = SHA256.new(text.encode()).digest()
+				for i in publickeylist:
+					if UUID_S == i[0]:
+						print(i)
+						public_key_s = RSA.importKey(i[1])
+						break
+				print(public_key_s.verify(hash, sig))
+					
 	
 queueLock = threading.Lock()
 threads = []
